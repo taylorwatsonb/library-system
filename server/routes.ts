@@ -89,7 +89,7 @@ export function registerRoutes(app: Express) {
         await tx.insert(checkouts).values({
           userId: req.user!.id,
           bookId,
-          dueDate: addDays(new Date(), 14),
+          dueDate: addDays(new Date(), 0), // Set due date to now for testing
         });
       });
 
@@ -101,9 +101,9 @@ export function registerRoutes(app: Express) {
 
   // Helper function to calculate fine amount
   const calculateFineAmount = (dueDate: Date, returnDate: Date): number => {
-    const daysLate = Math.max(0, Math.floor((returnDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
-    // $0.50 per day, stored in cents
-    return daysLate * 50;
+    // For testing: Using minutes instead of days, $0.50 per minute
+    const minutesLate = Math.max(0, Math.floor((returnDate.getTime() - dueDate.getTime()) / (1000 * 60)));
+    return minutesLate * 50;
   };
 
   // Return a book
@@ -401,44 +401,6 @@ export function registerRoutes(app: Express) {
       res.json({ message: "Fine paid successfully" });
     } catch (error) {
       console.error('Error paying fine:', error);
-      res.status(500).send("Error paying fine");
-    }
-  });
-
-  // Pay a fine
-  app.post("/api/fines/:id/pay", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const fineId = parseInt(req.params.id);
-      const [fine] = await db
-        .select()
-        .from(fines)
-        .where(
-          and(
-            eq(fines.id, fineId),
-            eq(fines.userId, req.user!.id),
-            eq(fines.status, 'pending')
-          )
-        )
-        .limit(1);
-
-      if (!fine) {
-        return res.status(404).send("Fine not found or already paid");
-      }
-
-      await db
-        .update(fines)
-        .set({ 
-          status: 'paid',
-          paidAt: new Date(),
-        })
-        .where(eq(fines.id, fineId));
-
-      res.json({ message: "Fine paid successfully" });
-    } catch (error) {
       res.status(500).send("Error paying fine");
     }
   });
