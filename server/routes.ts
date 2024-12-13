@@ -361,7 +361,47 @@ export function registerRoutes(app: Express) {
 
       res.json(userFines);
     } catch (error) {
+      console.error('Error fetching fines:', error);
       res.status(500).send("Error fetching fines");
+    }
+  });
+
+  // Pay a fine
+  app.post("/api/fines/:id/pay", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const fineId = parseInt(req.params.id);
+      const [fine] = await db
+        .select()
+        .from(fines)
+        .where(
+          and(
+            eq(fines.id, fineId),
+            eq(fines.userId, req.user!.id),
+            eq(fines.status, 'pending')
+          )
+        )
+        .limit(1);
+
+      if (!fine) {
+        return res.status(404).send("Fine not found or already paid");
+      }
+
+      await db
+        .update(fines)
+        .set({ 
+          status: 'paid',
+          paidAt: new Date(),
+        })
+        .where(eq(fines.id, fineId));
+
+      res.json({ message: "Fine paid successfully" });
+    } catch (error) {
+      console.error('Error paying fine:', error);
+      res.status(500).send("Error paying fine");
     }
   });
 
