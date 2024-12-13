@@ -105,7 +105,7 @@ export function registerRoutes(app: Express) {
           and(
             eq(checkouts.bookId, bookId),
             eq(checkouts.userId, req.user!.id),
-            eq(checkouts.returnedAt, null)
+            eq(checkouts.returnedAt, undefined)
           )
         )
         .limit(1);
@@ -129,6 +129,60 @@ export function registerRoutes(app: Express) {
       res.json({ message: "Book returned successfully" });
     } catch (error) {
       res.status(500).send("Error returning book");
+    }
+  });
+
+  // Authors API endpoints
+  app.get("/api/authors", async (req, res) => {
+    try {
+      const results = await db.query.authors.findMany();
+      res.json(results);
+    } catch (error) {
+      res.status(500).send("Error fetching authors");
+    }
+  });
+
+  app.post("/api/authors", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    if (req.user?.role !== 'admin' && req.user?.role !== 'librarian') {
+      return res.status(403).send("Not authorized");
+    }
+
+    try {
+      const [author] = await db.insert(authors)
+        .values({
+          name: req.body.name,
+          bio: req.body.bio,
+        })
+        .returning();
+
+      res.status(201).json(author);
+    } catch (error) {
+      res.status(500).send("Error creating author");
+    }
+  });
+
+  // Get author by ID with their books
+  app.get("/api/authors/:id", async (req, res) => {
+    try {
+      const authorId = parseInt(req.params.id);
+      const [author] = await db.query.authors.findMany({
+        where: eq(authors.id, authorId),
+        with: {
+          books: true,
+        },
+      });
+
+      if (!author) {
+        return res.status(404).send("Author not found");
+      }
+
+      res.json(author);
+    } catch (error) {
+      res.status(500).send("Error fetching author");
     }
   });
 }

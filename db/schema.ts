@@ -45,6 +45,10 @@ export const booksRelations = relations(books, ({ one }) => ({
   }),
 }));
 
+export const authorsRelations = relations(authors, ({ many }) => ({
+  books: many(books),
+}));
+
 export const checkoutsRelations = relations(checkouts, ({ one }) => ({
   user: one(users, {
     fields: [checkouts.userId],
