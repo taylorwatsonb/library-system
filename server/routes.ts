@@ -1,9 +1,9 @@
 import { Express } from "express";
 import { setupAuth } from "./auth";
 import { db } from "../db";
-import { books, authors, checkouts } from "@db/schema";
-import { eq, like, and, gt } from "drizzle-orm";
-import { addDays } from "date-fns";
+import { books, authors, checkouts, reservations } from "@db/schema";
+import { eq, like, and, gt, isNull } from "drizzle-orm";
+import { addDays, addHours } from "date-fns";
 
 export function registerRoutes(app: Express) {
   setupAuth(app);
@@ -183,6 +183,119 @@ export function registerRoutes(app: Express) {
       res.json(author);
     } catch (error) {
       res.status(500).send("Error fetching author");
+    }
+  });
+
+  // Reserve a book
+  app.post("/api/books/:id/reserve", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const bookId = parseInt(req.params.id);
+      const [book] = await db
+        .select()
+        .from(books)
+        .where(eq(books.id, bookId))
+        .limit(1);
+
+      if (!book) {
+        return res.status(404).send("Book not found");
+      }
+
+      // Check if user already has an active reservation for this book
+      const [existingReservation] = await db
+        .select()
+        .from(reservations)
+        .where(
+          and(
+            eq(reservations.bookId, bookId),
+            eq(reservations.userId, req.user!.id),
+            eq(reservations.status, 'pending')
+          )
+        )
+        .limit(1);
+
+      if (existingReservation) {
+        return res.status(400).send("You already have an active reservation for this book");
+      }
+
+      // Create new reservation
+      const [reservation] = await db
+        .insert(reservations)
+        .values({
+          userId: req.user!.id,
+          bookId,
+          expiresAt: addHours(new Date(), 48),
+        })
+        .returning();
+
+      res.status(201).json(reservation);
+    } catch (error) {
+      res.status(500).send("Error creating reservation");
+    }
+  });
+
+  // Cancel a reservation
+  app.post("/api/reservations/:id/cancel", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const reservationId = parseInt(req.params.id);
+      const [reservation] = await db
+        .select()
+        .from(reservations)
+        .where(
+          and(
+            eq(reservations.id, reservationId),
+            eq(reservations.userId, req.user!.id)
+          )
+        )
+        .limit(1);
+
+      if (!reservation) {
+        return res.status(404).send("Reservation not found");
+      }
+
+      if (reservation.status !== 'pending') {
+        return res.status(400).send("Reservation cannot be cancelled");
+      }
+
+      await db
+        .update(reservations)
+        .set({ status: 'cancelled' })
+        .where(eq(reservations.id, reservationId));
+
+      res.json({ message: "Reservation cancelled successfully" });
+    } catch (error) {
+      res.status(500).send("Error cancelling reservation");
+    }
+  });
+
+  // Get user's reservations
+  app.get("/api/reservations", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const userReservations = await db.query.reservations.findMany({
+        where: eq(reservations.userId, req.user!.id),
+        with: {
+          book: {
+            with: {
+              author: true,
+            },
+          },
+        },
+      });
+
+      res.json(userReservations);
+    } catch (error) {
+      res.status(500).send("Error fetching reservations");
     }
   });
 }

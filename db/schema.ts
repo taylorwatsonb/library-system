@@ -38,6 +38,27 @@ export const checkouts = pgTable("checkouts", {
   returnedAt: timestamp("returned_at"),
 });
 
+export const reservations = pgTable("reservations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  bookId: integer("book_id").references(() => books.id),
+  reservedAt: timestamp("reserved_at").defaultNow(),
+  status: text("status").notNull().default('pending'), // pending, fulfilled, cancelled
+  notificationSent: boolean("notification_sent").default(false),
+  expiresAt: timestamp("expires_at").notNull(), // reservation expires after 48 hours
+});
+
+export const reservationsRelations = relations(reservations, ({ one }) => ({
+  user: one(users, {
+    fields: [reservations.userId],
+    references: [users.id],
+  }),
+  book: one(books, {
+    fields: [reservations.bookId],
+    references: [books.id],
+  }),
+}));
+
 export const booksRelations = relations(books, ({ one }) => ({
   author: one(authors, {
     fields: [books.authorId],

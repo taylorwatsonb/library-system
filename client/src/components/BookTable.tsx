@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useBooks } from "@/hooks/use-books";
+import { useReservations } from "@/hooks/use-reservations";
 import type { SearchParams } from "@/types";
 import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ export function BookTable({ searchParams }: BookTableProps) {
   const { user } = useUser();
   const { toast } = useToast();
   const { books, isLoading, checkoutBook, returnBook } = useBooks(searchParams);
+  const { reserveBook } = useReservations();
 
   const handleCheckout = async (bookId: number) => {
     try {
@@ -43,6 +45,22 @@ export function BookTable({ searchParams }: BookTableProps) {
       toast({
         title: "Success",
         description: "Book returned successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReserve = async (bookId: number) => {
+    try {
+      await reserveBook(bookId);
+      toast({
+        title: "Success",
+        description: "Book reserved successfully",
       });
     } catch (error: any) {
       toast({
@@ -80,23 +98,34 @@ export function BookTable({ searchParams }: BookTableProps) {
               {book.available}/{book.quantity}
             </TableCell>
             <TableCell>
-              {book.available > 0 ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleCheckout(book.id)}
-                >
-                  Check Out
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleReturn(book.id)}
-                >
-                  Return
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {book.available > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCheckout(book.id)}
+                  >
+                    Check Out
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReturn(book.id)}
+                    >
+                      Return
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleReserve(book.id)}
+                    >
+                      Reserve
+                    </Button>
+                  </>
+                )}
+              </div>
             </TableCell>
           </TableRow>
         ))}
