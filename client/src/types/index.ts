@@ -5,6 +5,7 @@ export type BookWithAuthor = {
   genre: string | null;
   quantity: number;
   available: number;
+  checkedOutByMe?: boolean;
   author: {
     id: number;
     name: string;

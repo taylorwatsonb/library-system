@@ -108,7 +108,16 @@ export function BookTable({ searchParams }: BookTableProps) {
                     Check Out
                   </Button>
                 )}
-                {book.available === 0 && (
+                {book.checkedOutByMe && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleReturn(book.id)}
+                  >
+                    Return
+                  </Button>
+                )}
+                {book.available === 0 && !book.checkedOutByMe && (
                   <Button
                     variant="secondary"
                     size="sm"

@@ -33,6 +33,25 @@ export function registerRoutes(app: Express) {
         },
       });
 
+      // If user is authenticated, check which books are checked out by them
+      if (req.isAuthenticated()) {
+        const userCheckouts = await db
+          .select()
+          .from(checkouts)
+          .where(
+            and(
+              eq(checkouts.userId, req.user!.id),
+              isNull(checkouts.returnedAt)
+            )
+          );
+
+        const userCheckoutBookIds = new Set(userCheckouts.map(c => c.bookId));
+        
+        results.forEach(book => {
+          (book as any).checkedOutByMe = userCheckoutBookIds.has(book.id);
+        });
+      }
+
       res.json(results);
     } catch (error) {
       res.status(500).send("Error fetching books");
