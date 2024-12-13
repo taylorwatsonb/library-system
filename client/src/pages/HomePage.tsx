@@ -6,8 +6,10 @@ import { ReservationsDialog } from "@/components/ReservationsDialog";
 import { FinesDialog } from "@/components/FinesDialog";
 import { useState } from "react";
 import { BookDialog } from "@/components/BookDialog";
+import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import type { SearchParams } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function HomePage() {
   const { user, logout } = useUser();
@@ -50,16 +52,37 @@ export default function HomePage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <SearchBar onSearch={setSearchParams} />
-          {(user?.role === 'admin' || user?.role === 'librarian') && (
-            <Button onClick={() => setIsBookDialogOpen(true)}>
-              Add New Book
-            </Button>
-          )}
-        </div>
+        {(user?.role === 'admin' || user?.role === 'librarian') ? (
+          <Tabs defaultValue="books">
+            <TabsList className="mb-8">
+              <TabsTrigger value="books">Book Management</TabsTrigger>
+              <TabsTrigger value="analytics">Analytics Dashboard</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="books">
+              <div className="flex justify-between items-center mb-8">
+                <SearchBar onSearch={setSearchParams} />
+                <Button onClick={() => setIsBookDialogOpen(true)}>
+                  Add New Book
+                </Button>
+              </div>
 
-        <BookTable searchParams={searchParams} />
+              <BookTable searchParams={searchParams} />
+            </TabsContent>
+
+            <TabsContent value="analytics">
+              <AnalyticsDashboard />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <>
+            <div className="flex justify-between items-center mb-8">
+              <SearchBar onSearch={setSearchParams} />
+            </div>
+
+            <BookTable searchParams={searchParams} />
+          </>
+        )}
 
         <BookDialog 
           open={isBookDialogOpen} 

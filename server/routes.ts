@@ -404,4 +404,97 @@ export function registerRoutes(app: Express) {
       res.status(500).send("Error paying fine");
     }
   });
+
+  // Analytics Endpoints
+  app.get("/api/analytics/books", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const bookStats = await db
+        .select({
+          id: books.id,
+          title: books.title,
+          checkouts: db.count(checkouts.id).as('checkouts'),
+          reservations: db.count(reservations.id).as('reservations'),
+        })
+        .from(books)
+        .leftJoin(checkouts, eq(books.id, checkouts.bookId))
+        .leftJoin(reservations, eq(books.id, reservations.bookId))
+        .groupBy(books.id)
+        .orderBy(db.desc(db.count(checkouts.id)))
+        .limit(10);
+
+      res.json(bookStats);
+    } catch (error) {
+      console.error('Error fetching book analytics:', error);
+      res.status(500).send("Error fetching book analytics");
+    }
+  });
+
+  app.get("/api/analytics/fines", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const [totalStats] = await db
+        .select({
+          totalAmount: db.sum(fines.amount).as('totalAmount'),
+          paidAmount: db.sum(
+            sql`CASE WHEN ${fines.status} = 'paid' THEN ${fines.amount} ELSE 0 END`
+          ).as('paidAmount'),
+          pendingAmount: db.sum(
+            sql`CASE WHEN ${fines.status} = 'pending' THEN ${fines.amount} ELSE 0 END`
+          ).as('pendingAmount'),
+        })
+        .from(fines);
+
+      const monthlyStats = await db
+        .select({
+          month: sql`date_trunc('month', ${fines.createdAt})::text`,
+          amount: db.sum(fines.amount).as('amount'),
+        })
+        .from(fines)
+        .groupBy(sql`date_trunc('month', ${fines.createdAt})`)
+        .orderBy(sql`date_trunc('month', ${fines.createdAt})`);
+
+      res.json({
+        ...totalStats,
+        monthlyStats,
+      });
+    } catch (error) {
+      console.error('Error fetching fine analytics:', error);
+      res.status(500).send("Error fetching fine analytics");
+    }
+  });
+
+  app.get("/api/analytics/activity", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const dailyActivity = await db
+        .select({
+          date: sql`date_trunc('day', ${checkouts.checkedOutAt})::text`,
+          checkouts: db.count(checkouts.id).as('checkouts'),
+          returns: db.count(
+            sql`CASE WHEN ${checkouts.returnedAt} IS NOT NULL THEN 1 END`
+          ).as('returns'),
+          reservations: db.count(reservations.id).as('reservations'),
+        })
+        .from(checkouts)
+        .leftJoin(reservations, sql`date_trunc('day', ${checkouts.checkedOutAt}) = date_trunc('day', ${reservations.reservedAt})`)
+        .groupBy(sql`date_trunc('day', ${checkouts.checkedOutAt})`)
+        .orderBy(sql`date_trunc('day', ${checkouts.checkedOutAt})`)
+        .limit(30);
+
+      res.json({ dailyActivity });
+    } catch (error) {
+      console.error('Error fetching activity analytics:', error);
+      res.status(500).send("Error fetching activity analytics");
+    }
+  });
 }
