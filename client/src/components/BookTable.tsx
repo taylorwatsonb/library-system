@@ -99,7 +99,7 @@ export function BookTable({ searchParams }: BookTableProps) {
             </TableCell>
             <TableCell>
               <div className="flex gap-2">
-                {book.available > 0 ? (
+                {book.available > 0 && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -107,23 +107,15 @@ export function BookTable({ searchParams }: BookTableProps) {
                   >
                     Check Out
                   </Button>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleReturn(book.id)}
-                    >
-                      Return
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleReserve(book.id)}
-                    >
-                      Reserve
-                    </Button>
-                  </>
+                )}
+                {book.available === 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleReserve(book.id)}
+                  >
+                    Reserve
+                  </Button>
                 )}
               </div>
             </TableCell>
