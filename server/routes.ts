@@ -1,7 +1,7 @@
 import { Express } from "express";
 import { setupAuth } from "./auth";
 import { db } from "../db";
-import { books, authors, checkouts, reservations } from "@db/schema";
+import { books, authors, checkouts, reservations, fines } from "@db/schema";
 import { eq, like, and, gt, isNull } from "drizzle-orm";
 import { addDays, addHours } from "date-fns";
 
@@ -80,6 +80,13 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Helper function to calculate fine amount
+  const calculateFineAmount = (dueDate: Date, returnDate: Date): number => {
+    const daysLate = Math.max(0, Math.floor((returnDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+    // $0.50 per day, stored in cents
+    return daysLate * 50;
+  };
+
   // Return a book
   app.post("/api/books/:id/return", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -105,7 +112,7 @@ export function registerRoutes(app: Express) {
           and(
             eq(checkouts.bookId, bookId),
             eq(checkouts.userId, req.user!.id),
-            eq(checkouts.returnedAt, undefined)
+            isNull(checkouts.returnedAt)
           )
         )
         .limit(1);
@@ -120,10 +127,21 @@ export function registerRoutes(app: Express) {
           .set({ available: (book.available || 0) + 1 })
           .where(eq(books.id, bookId));
 
+        const returnDate = new Date();
         await tx
           .update(checkouts)
-          .set({ returnedAt: new Date() })
+          .set({ returnedAt: returnDate })
           .where(eq(checkouts.id, checkout.id));
+
+        // Calculate and create fine if book is overdue
+        const fineAmount = calculateFineAmount(checkout.dueDate, returnDate);
+        if (fineAmount > 0) {
+          await tx.insert(fines).values({
+            userId: req.user!.id,
+            checkoutId: checkout.id,
+            amount: fineAmount,
+          });
+        }
       });
 
       res.json({ message: "Book returned successfully" });
@@ -296,6 +314,73 @@ export function registerRoutes(app: Express) {
       res.json(userReservations);
     } catch (error) {
       res.status(500).send("Error fetching reservations");
+    }
+  });
+
+  // Get user's fines
+  app.get("/api/fines", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const userFines = await db.query.fines.findMany({
+        where: eq(fines.userId, req.user!.id),
+        with: {
+          checkout: {
+            with: {
+              book: {
+                with: {
+                  author: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: (fines, { desc }) => [desc(fines.createdAt)],
+      });
+
+      res.json(userFines);
+    } catch (error) {
+      res.status(500).send("Error fetching fines");
+    }
+  });
+
+  // Pay a fine
+  app.post("/api/fines/:id/pay", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const fineId = parseInt(req.params.id);
+      const [fine] = await db
+        .select()
+        .from(fines)
+        .where(
+          and(
+            eq(fines.id, fineId),
+            eq(fines.userId, req.user!.id),
+            eq(fines.status, 'pending')
+          )
+        )
+        .limit(1);
+
+      if (!fine) {
+        return res.status(404).send("Fine not found or already paid");
+      }
+
+      await db
+        .update(fines)
+        .set({ 
+          status: 'paid',
+          paidAt: new Date(),
+        })
+        .where(eq(fines.id, fineId));
+
+      res.json({ message: "Fine paid successfully" });
+    } catch (error) {
+      res.status(500).send("Error paying fine");
     }
   });
 }

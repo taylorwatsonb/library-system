@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { BookTable } from "@/components/BookTable";
 import { SearchBar } from "@/components/SearchBar";
 import { ReservationsDialog } from "@/components/ReservationsDialog";
+import { FinesDialog } from "@/components/FinesDialog";
 import { useState } from "react";
 import { BookDialog } from "@/components/BookDialog";
 import type { SearchParams } from "@/types";
@@ -37,7 +38,10 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold">Library Management System</h1>
           <div className="flex items-center gap-4">
             <span>Welcome, {user?.username}</span>
-            <ReservationsDialog />
+            <div className="flex gap-2">
+              <ReservationsDialog />
+              <FinesDialog />
+            </div>
             <Button variant="outline" onClick={handleLogout}>
               Logout
             </Button>

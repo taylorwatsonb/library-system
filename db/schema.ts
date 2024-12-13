@@ -96,3 +96,30 @@ export const insertBookSchema = createInsertSchema(books);
 export const selectBookSchema = createSelectSchema(books);
 export const insertAuthorSchema = createInsertSchema(authors);
 export const selectAuthorSchema = createSelectSchema(authors);
+
+export const fines = pgTable("fines", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  checkoutId: integer("checkout_id").references(() => checkouts.id),
+  amount: integer("amount").notNull(), // Amount in cents
+  status: text("status").notNull().default('pending'), // pending, paid
+  createdAt: timestamp("created_at").defaultNow(),
+  paidAt: timestamp("paid_at"),
+});
+
+export const finesRelations = relations(fines, ({ one }) => ({
+  user: one(users, {
+    fields: [fines.userId],
+    references: [users.id],
+  }),
+  checkout: one(checkouts, {
+    fields: [fines.checkoutId],
+    references: [checkouts.id],
+  }),
+}));
+
+export type Fine = typeof fines.$inferSelect;
+export type InsertFine = typeof fines.$inferInsert;
+
+export const insertFineSchema = createInsertSchema(fines);
+export const selectFineSchema = createSelectSchema(fines);
